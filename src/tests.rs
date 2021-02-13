@@ -47,6 +47,16 @@ fn test_blocked_maze() {
 }
 
 #[test]
+fn test_maze_contains_walls() {
+    let maze = Maze::generate(16, 16);
+    let walls = maze.data.into_iter()
+        .filter(|&b| b)
+        .map(|b| b as usize)
+        .sum::<usize>();
+    assert!(walls > 1);
+}
+
+#[test]
 fn test_maze_generation() {
     for _ in 0..4 {
         let maze = Maze::generate(256, 256);
