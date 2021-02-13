@@ -60,17 +60,7 @@ struct Neighbours<'a> {
     maze: &'a Maze,
 }
 
-impl<'a> Neighbours<'a> {
-    /// Returns iterator on neighbours of a point with the bounds check.
-    pub fn of(point: Point, maze: &'a Maze) -> Self {
-        Self {
-            point,
-            neighbour: 0,
-            maze,
-        }
-    }
-}
-
+/// Iterator on neighbours of a point with the bounds check.
 impl<'a> Iterator for Neighbours<'a> {
     type Item = Point;
 
@@ -122,34 +112,24 @@ impl Maze {
         let start = (x, y);
 
         // Then, add neighbouring filled cells to list.
-        for neighbour in Neighbours::of(start, &maze) {
+        for neighbour in maze.neighbours(start) {
             if maze[neighbour] { cells.push(neighbour); }
         }
 
         while let Some(current) = cells.remove_random(&mut rng) {
             let mut explored = 0;
-            for next in Neighbours::of(current, &maze) {
+            for next in maze.neighbours(current) {
                 if !maze[next] { explored += 1; }
             }
             if explored < 2 {
                 maze[current] = false;
-                for next in Neighbours::of(current, &maze) {
+                for next in maze.neighbours(current) {
                     if maze[next] { cells.push(next) }
                 }
             }
         }
 
         maze
-    }
-
-    fn is_exit(&self, point: Point) -> bool {
-        point.0 == 0 || point.0 == self.n - 1
-            || point.1 == 0 || point.1 == self.m - 1
-    }
-
-    /// Bounds check.
-    pub fn is_valid(&self, point: Point) -> bool {
-        point.0 < self.n && point.1 < self.m
     }
 
     /// Returns a path from the `start` point to an exit, if exists.
@@ -165,7 +145,7 @@ impl Maze {
 
         while let Some(current) = queue.pop_front() {
             if exit.is_some() { break; }
-            for next in Neighbours::of(current, &self) {
+            for next in self.neighbours(current) {
                 if self[next] || costs[next] != 0 { continue; }
                 if self.is_exit(next) { exit = Some(next); }
                 costs[next] = costs[current] + 1;
@@ -178,7 +158,7 @@ impl Maze {
         let mut path = vec![current];
 
         while current != start {
-            for next in Neighbours::of(current, &self) {
+            for next in self.neighbours(current) {
                 if costs[next] != 0 && costs[next] < costs[current] {
                     current = next;
                     path.push(current);
@@ -193,6 +173,24 @@ impl Maze {
             .collect();
 
         Some(path)
+    }
+
+    fn neighbours(&self, start: Point) -> Neighbours {
+        Neighbours {
+            point: start,
+            neighbour: 0,
+            maze: &self,
+        }
+    }
+
+    fn is_exit(&self, point: Point) -> bool {
+        point.0 == 0 || point.0 == self.n - 1
+            || point.1 == 0 || point.1 == self.m - 1
+    }
+
+    /// Bounds check.
+    pub fn is_valid(&self, point: Point) -> bool {
+        point.0 < self.n && point.1 < self.m
     }
 }
 
