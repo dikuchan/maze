@@ -54,36 +54,49 @@ impl<T> IndexMut<Point> for Matrix<T> {
 }
 
 /// Von Neumann neighbourhood.
-struct Neighbours {
+struct Neighbours<'a> {
     point: Point,
     neighbour: usize,
+    maze: &'a Maze,
 }
 
-impl Neighbours {
-    /// Returns iterator on neighbours of a point.
-    pub fn of(point: Point) -> Self {
-        Self { point, neighbour: 0 }
+impl<'a> Neighbours<'a> {
+    /// Returns iterator on neighbours of a point with the bounds check.
+    pub fn of(point: Point, maze: &'a Maze) -> Self {
+        Self {
+            point,
+            neighbour: 0,
+            maze,
+        }
     }
 }
 
-impl Iterator for Neighbours {
+impl<'a> Iterator for Neighbours<'a> {
     type Item = Point;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (i, j) = match self.neighbour {
-            0 => (-1, 0),
-            1 => (0, 1),
-            2 => (1, 0),
-            3 => (0, -1),
-            _ => return None,
-        };
-        let (x, y) = self.point;
-        let x = safe_add(x, i);
-        let y = safe_add(y, j);
+        let mut valid = false;
+        let mut result = None;
 
-        self.neighbour += 1;
+        // At least two valid points exist.
+        while !valid {
+            let (i, j) = match self.neighbour {
+                0 => (-1, 0),
+                1 => (0, 1),
+                2 => (1, 0),
+                3 => (0, -1),
+                _ => return None,
+            };
+            let (x, y) = self.point;
+            let x = safe_add(x, i);
+            let y = safe_add(y, j);
 
-        Some((x, y))
+            result = Some((x, y));
+            valid = self.maze.is_valid((x, y));
+            self.neighbour += 1;
+        }
+
+        result
     }
 }
 
@@ -109,19 +122,19 @@ impl Maze {
         let start = (x, y);
 
         // Then, add neighbouring filled cells to list.
-        for neighbour in Neighbours::of(start) {
-            if maze.is_valid(neighbour) && maze[neighbour] { cells.push(neighbour); }
+        for neighbour in Neighbours::of(start, &maze) {
+            if maze[neighbour] { cells.push(neighbour); }
         }
 
         while let Some(current) = cells.remove_random(&mut rng) {
             let mut explored = 0;
-            for next in Neighbours::of(current) {
-                if maze.is_valid(next) && !maze[next] { explored += 1; }
+            for next in Neighbours::of(current, &maze) {
+                if !maze[next] { explored += 1; }
             }
             if explored < 2 {
                 maze[current] = false;
-                for next in Neighbours::of(current) {
-                    if maze.is_valid(next) && maze[next] { cells.push(next) }
+                for next in Neighbours::of(current, &maze) {
+                    if maze[next] { cells.push(next) }
                 }
             }
         }
@@ -135,13 +148,13 @@ impl Maze {
     }
 
     /// Bounds check.
-    fn is_valid(&self, point: Point) -> bool {
+    pub fn is_valid(&self, point: Point) -> bool {
         point.0 < self.n && point.1 < self.m
     }
 
     /// Returns a path from the `start` point to an exit, if exists.
     pub fn solve(&self, start: Point) -> Option<Path> {
-        if self[start] { return None; }
+        if !self.is_valid(start) || self[start] { return None; }
 
         let mut queue = VecDeque::new();
         let mut costs = Matrix::<usize>::new(self.n, self.m);
@@ -152,8 +165,8 @@ impl Maze {
 
         while let Some(current) = queue.pop_front() {
             if exit.is_some() { break; }
-            for next in Neighbours::of(current) {
-                if !self.is_valid(next) || self[next] || costs[next] != 0 { continue; }
+            for next in Neighbours::of(current, &self) {
+                if self[next] || costs[next] != 0 { continue; }
                 if self.is_exit(next) { exit = Some(next); }
                 costs[next] = costs[current] + 1;
                 queue.push_back(next);
@@ -165,9 +178,7 @@ impl Maze {
         let mut path = vec![current];
 
         while current != start {
-            for next in Neighbours::of(current) {
-                if !self.is_valid(next) { continue; }
-
+            for next in Neighbours::of(current, &self) {
                 if costs[next] != 0 && costs[next] < costs[current] {
                     current = next;
                     path.push(current);
@@ -175,7 +186,6 @@ impl Maze {
                 }
             }
         }
-
         // Change direction.
         let path = path.iter()
             .rev()
