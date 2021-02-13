@@ -60,14 +60,13 @@ fn test_maze_contains_walls() {
 fn test_maze_generation() {
     for _ in 0..4 {
         let maze = Maze::generate(256, 256);
-        let mut path = None;
         for i in 0..maze.n {
             for j in 0..maze.m {
                 if !maze[(i, j)] {
-                    path = maze.solve((i, j))
+                    let path = maze.solve((i, j));
+                    assert!(path.is_some());
                 }
             }
         }
-        assert!(path.is_some());
     }
 }
